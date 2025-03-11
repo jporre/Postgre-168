@@ -1,0 +1,63 @@
+services:
+  pg168_db:
+    image: pg16-bnex:0.25.03-09-1739
+    container_name: pg168_db
+    restart: always
+    env_file:
+      - .env
+    environment:
+      # Variables básicas de PostgreSQL
+      - POSTGRES_HOST=pg168_db
+      - PGDATA=/var/lib/postgresql/data/pgdata
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_DB=${POSTGRES_DB}
+      # Variables para optimizaciones en init-db.sh
+      - CREATE_READONLY_ROLE=true
+      - INDEX_TABLESPACE_PATH=/var/lib/postgresql/index_tablespace
+      - ENABLE_MONITORING_SCHEMA=true
+      # Variables para ajuste de rendimiento
+      - POSTGRES_INITDB_ARGS="--data-checksums"
+      - POSTGRES_HOST_AUTH_METHOD=md5
+      # Configuración de memoria (override de postgresql.conf si es necesario)
+      - MEMORY_LIMIT_MB=${MEMORY_LIMIT_MB:-4096}  # Memoria total asignada al contenedor en MB
+    volumes:
+      - pg_data168:/var/lib/postgresql/data
+      - pg_data168_index:/var/lib/postgresql/index_tablespace
+      - ./backups:/backups
+      - ./config/postgresql.conf:/etc/postgresql/postgresql.conf    # Mount custom postgresql.conf
+      - ./config/pg_hba.conf:/etc/postgresql/pg_hba.conf            # Mount custom pg_hba.conf
+      # Volumen dedicado para índices (mejor rendimiento)
+    networks:
+      - fc-internal
+    ports:
+      - "5435:5432"
+    # Ajuste automático de límites del sistema
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    # Ajustes de rendimiento a nivel del sistema
+    sysctls:
+      - kernel.shmmax=68719476736
+      - kernel.shmall=4294967296
+    command: ["postgres", "-c", "config_file=/etc/postgresql/postgresql.conf"]
+    deploy:
+      resources:
+        limits:
+          cpus: "${CPU_LIMIT:-2}"
+          memory: "${MEMORY_LIMIT:-4G}"
+        reservations:
+          cpus: "${CPU_RESERVE:-1}"
+          memory: "${MEMORY_RESERVE:-2G}"
+volumes:
+  pg_data168:
+  pg_data168_index:
+networks:
+  fc-internal:
+    external: true
+    name: fc-internal
+    driver: bridge
